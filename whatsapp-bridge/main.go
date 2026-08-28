@@ -48,6 +48,9 @@ var forwardSelfMessages = getEnvBool("FORWARD_SELF", true)
 var fullHistoryPairFlag = flag.Bool("full-history-pair", false,
 	"Request full history at pair time (only effective when re-pairing; no-op for existing sessions)")
 
+var pairPhoneFlag = flag.String("pair-phone", "",
+	"Phone number (digits only, with country code, e.g. 15551234567) to pair via WhatsApp's \"Link with phone number\" code entry instead of scanning a QR code")
+
 const whatsmeowDBPath = "store/whatsapp.db"
 
 // getEnvBool reads a boolean env var with a default.
@@ -3016,6 +3019,32 @@ func main() {
 				continue
 			}
 
+			if *pairPhoneFlag != "" {
+				go func() {
+					for range qrChan {
+					}
+				}()
+				linkingCode, pairErr := client.PairPhone(ctx, *pairPhoneFlag, true, whatsmeow.PairClientChrome, "Chrome (Linux)")
+				if pairErr != nil {
+					logger.Errorf("Failed to request phone pairing code: %v", pairErr)
+				} else {
+					fmt.Println()
+					fmt.Printf("On the phone for %s: WhatsApp -> Settings -> Linked Devices -> Link a Device -> \"Link with phone number instead\", then enter this code:\n", *pairPhoneFlag)
+					fmt.Println()
+					fmt.Printf("    %s\n", linkingCode)
+					fmt.Println()
+					fmt.Println("Waiting for pairing (up to 2 minutes)...")
+					pairDeadline := time.Now().Add(2 * time.Minute)
+					for time.Now().Before(pairDeadline) {
+						if client.IsLoggedIn() {
+							connected <- true
+							break
+						}
+						time.Sleep(1 * time.Second)
+					}
+				}
+				goto connectionSuccess
+			}
 			// Print QR code for pairing with phone
 			qrCodeShown := false
 			for evt := range qrChan {
