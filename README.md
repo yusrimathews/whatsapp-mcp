@@ -58,6 +58,11 @@ A Model Context Protocol (MCP) server for WhatsApp, enabling Claude to read and 
    `whatsapp-bridge/store/.bridge-token`. Scan the QR code with WhatsApp on
    your phone to authenticate.
 
+   No way to scan a QR code (headless server, SSH session, terminal without
+   image support)? Start with `go run . --pair-phone <your-number>` instead and
+   type the printed code into WhatsApp — see
+   [Pairing with a phone number](#pairing-with-a-phone-number-no-qr-code).
+
 3. **Configure Claude Desktop**
 
    Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
@@ -522,6 +527,33 @@ message DBs, media, and `.bridge-token`. Logs are left in
 | Flag                  | Default | Description                                                                                                                                                                                                                                                       |
 | --------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--full-history-pair` | `false` | Request full history at pair time. Only takes effect on a fresh pair (no existing `whatsapp.db`); no-op for already-paired sessions. The phone ultimately decides the actual history window sent — see [Requesting full history](#requesting-full-history) below. |
+| `--pair-phone` | `""` | Pair by entering a linking code on the phone instead of scanning a QR code. Takes the phone's own WhatsApp number, digits only with country code (e.g. `15551234567`). Only takes effect on a fresh pair; no-op for already-paired sessions — see [Pairing with a phone number](#pairing-with-a-phone-number-no-qr-code) below. |
+
+### Pairing with a phone number (no QR code)
+
+If scanning a QR code isn't practical — headless server, SSH session, terminal
+without image support — pair by typing a linking code into WhatsApp instead:
+
+```bash
+cd whatsapp-bridge
+./whatsapp-bridge --pair-phone 15551234567    # or `go run . --pair-phone ...`
+```
+
+The bridge requests a code from WhatsApp, prints it, and waits up to 2 minutes
+for the pairing to complete. On the phone: **WhatsApp → Settings → Linked
+Devices → Link a Device → "Link with phone number instead"**, then enter the
+printed code. WhatsApp also pushes a notification to the phone when the code is
+requested.
+
+Caveats:
+
+- **Digits only, with country code.** `15551234567`, not `+1 (555) 123-4567`. It
+  must be the WhatsApp number of the primary device you're linking to.
+- **Only effective on a fresh pair.** With `whatsapp.db` already present the
+  bridge just reconnects and the flag is a no-op.
+- **The code is short-lived and single-use.** If it expires before you enter it,
+  restart the bridge with the flag to request a new one.
+- Combines with `--full-history-pair` if you're re-pairing to pull more history.
 
 ### Requesting full history
 
@@ -772,7 +804,10 @@ are documented in [docs/RELEASING.md](docs/RELEASING.md).
   release and rebuild the bridge. WhatsApp periodically raises the minimum
   supported linked-device client version, which can make older whatsmeow builds
   fail before pairing completes.
-- **QR Code Not Displaying**: Restart the bridge. Check terminal QR code support.
+- **QR Code Not Displaying**: Restart the bridge. Check terminal QR code
+  support. If the terminal can't render it at all, pair with
+  `--pair-phone <your-number>` instead — see
+  [Pairing with a phone number](#pairing-with-a-phone-number-no-qr-code).
 - **Device Limit Reached**: Remove a linked device from WhatsApp Settings > Linked Devices.
 - **No Messages Loading**: Initial sync can take several minutes for large chat histories.
 - **Out of Sync**: Back up `whatsapp-bridge/store`, then move
@@ -857,6 +892,7 @@ This project is a maintained fork of [lharries/whatsapp-mcp](https://github.com/
 - `get_contact` tool, `sender_display` field, and LID ↔ phone resolution via the whatsmeow store
 - Live capture of incoming voice/video calls into a `calls` table
 - `--full-history-pair` flag to request extended history at pair time
+- `--pair-phone` flag to pair via a linking code instead of a QR code
 - Resilience: recovers from `StreamReplaced` session conflicts; pinned `anyio` to dodge a cancel-scope regression
 - CI/CD with GitHub Actions, Release Please for automated versioning, and Dependabot
 
