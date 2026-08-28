@@ -3020,6 +3020,12 @@ func main() {
 			}
 
 			if *pairPhoneFlag != "" {
+				// whatsmeow requires the pairing websocket to be fully
+				// established before a code can be requested: wait for the
+				// first QR event, then drain the rest in the background since
+				// we never render a QR in this mode. A closed channel yields
+				// the zero value immediately, so this cannot block forever.
+				<-qrChan
 				go func() {
 					for range qrChan {
 					}
